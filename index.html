@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Historical Monuments Bot</title>
+  <style>
+    /* Basic reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%; /* Ensure html and body take full height */
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      display: flex;
+      align-items: center; /* Vertically center */
+      justify-content: center; /* Horizontally center */
+    }
+
+    /* Container for the entire chat app */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 600px;
+      height: 80vh; /* Set a height for the chat container */
+      max-height: 700px; /* Optional: set a max-height */
+      background: #fff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .chat-header {
+      background: #004d40;
+      color: #fff;
+      padding: 16px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+
+    /* Chat‐messages area */
+    .chat-messages {
+      flex-grow: 1; /* Allow this area to grow and fill available space */
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Each message bubble */
+    .message {
+      margin-bottom: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      line-height: 1.4;
+      padding: 10px 14px;
+      border-radius: 16px;
+      position: relative;
+    }
+
+    .message.user {
+      background: #c8e6c9;
+      align-self: flex-end;
+      border-bottom-right-radius: 0;
+    }
+
+    .message.bot {
+      background: #eeeeee;
+      align-self: flex-start;
+      border-bottom-left-radius: 0;
+    }
+
+    /* Input area (fixed at bottom) */
+    .chat-input {
+      display: flex;
+      border-top: 1px solid #ddd;
+    }
+
+    .chat-input textarea {
+      flex: 1;
+      resize: none;
+      border: none;
+      padding: 12px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .chat-input button {
+      background: #004d40;
+      color: #fff;
+      border: none;
+      padding: 0 24px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chat-input button:hover {
+      background: #00332c;
+    }
+
+    /* Scrollbar styling for messages area */
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      Historical Monuments Bot
+    </div>
+
+    <div id="messages" class="chat-messages">
+      <!-- Message bubbles go here -->
+    </div>
+
+    <div class="chat-input">
+      <textarea
+        id="userInput"
+        rows="1"
+        placeholder="Type your message..."
+      ></textarea>
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // === Configuration: Use your deployed PythonAnywhere API endpoint ===
+      const API_URL = "http://Hawk1278.pythonanywhere.com/chat";
+      // ========================================================================
+
+      const messagesDiv = document.getElementById("messages");
+      const userInput = document.getElementById("userInput");
+      const sendBtn = document.getElementById("sendBtn");
+
+      // ** Keep track of the conversation state **
+      let chatState = null;
+
+      // Automatically adjust textarea height as the user types
+      userInput.addEventListener("input", () => {
+        userInput.style.height = "auto";
+        userInput.style.height = userInput.scrollHeight + "px";
+      });
+
+      // Helper: Append a message bubble to the chat area
+      function appendMessage(text, sender) {
+        const msgDiv = document.createElement("div");
+        msgDiv.className = `message ${sender}`;
+        msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+        messagesDiv.appendChild(msgDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      // Send button / "Enter" key logic
+      function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        appendMessage(text, "user");
+        userInput.value = "";
+        userInput.style.height = "auto";
+
+        const payload = {
+            user_input: text,
+            state: chatState
+        };
+
+        fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              throw new Error(`HTTP error! status: ${resp.status}`);
+            }
+            return resp.json();
+          })
+          .then((data) => {
+            chatState = data;
+            const assistantMessages = chatState.messages.filter(m => m.role === 'assistant');
+            const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
+
+            if (lastAssistantMessage && lastAssistantMessage.content) {
+              appendMessage(lastAssistantMessage.content, "bot");
+            } else {
+              appendMessage(
+                "❌ Unexpected response format from the server.",
+                "bot"
+              );
+            }
+          })
+          .catch((err) => {
+            console.error("Fetch Error:", err);
+            appendMessage(
+              `❌ Failed to reach the server. Please check the connection or URL. Details: ${err.message}`,
+              "bot"
+            );
+          });
+      }
+
+      // Click handler
+      sendBtn.addEventListener("click", sendMessage);
+
+      // Allow "Enter" key to send (Shift+Enter for newline)
+      userInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      // On load, show a welcome / placeholder message from the bot
+      window.addEventListener("load", () => {
+        appendMessage(
+          "👋 Hello there! Ask me about any historical monument—e.g., “Tell me about the Colosseum.”",
+          "bot"
+        );
+      });
+    })();
+  </script>
+</body>
+</html>
